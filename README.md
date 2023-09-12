@@ -25,7 +25,7 @@ and an application to object classification with the CIFAR-10H image data set.
 
  - `cln/` Python package implementing our methods
  - `third_party/` Third-party Python packages imported by our package.
- - `examples/` Jupyter notebooks with introductory usage examples (to be added soon)
+ - `examples/` Jupyter notebooks with introductory usage examples
  - `experiments/` Code to reproduce the numerical experiments with simulated and real data discussed in the accompanying paper.
  
 

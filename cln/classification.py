@@ -86,7 +86,7 @@ class LNSplitConformal:
                 sys.stdout.flush()
 
         if verbose:
-            print('Evaluating conformity scores on {:d} calibration samples...'.format(X_cal.shape[0], X_cal.shape[1]))
+            print('Evaluating conformity scores on {:d} calibration samples...'.format(n_cal))
             sys.stdout.flush()
         # Evaluate conformity scores on calibration data
         p_hat_calib = self.black_box.predict_proba(X_calib)
