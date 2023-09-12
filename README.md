@@ -4,7 +4,7 @@ This software repository provides a software implementation of the methods descr
 
 >  "Adaptive conformal classification with noisy labels" <br>
 >  Matteo Sesia, Y. X. Rachel Wang, Xin Tong <br>
->  arXiv preprint
+>  arXiv preprint https://arxiv.org/abs/2309.05092
     
 ## Paper abstract
 
