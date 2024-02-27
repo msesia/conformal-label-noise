@@ -3,43 +3,62 @@ import scipy as sp
 from sklearn.model_selection import train_test_split
 import pdb
 
-def construct_M_matrix_simple(K, epsilon):
-    M = (1-epsilon) * np.identity(K) + epsilon/K * np.ones((K,K))
-    return M
+def construct_T_matrix_simple(K, epsilon):
+    # T_kl = P(Y_tilde = k | Y=l)
+    T = (1-epsilon) * np.identity(K) + epsilon/K * np.ones((K,K))
+    return T
 
-def construct_M_matrix_block(K, epsilon):
+def construct_T_matrix_block(K, epsilon):
     assert K%2 == 0
     K2 = int(K/2)
     J2 = np.ones((K2,K2))
-    M = (1-epsilon) * np.identity(K) + epsilon/K2 * sp.linalg.block_diag(J2,J2)
-    return M
+    T = (1.0-epsilon) * np.identity(K) + epsilon/K2 * sp.linalg.block_diag(J2,J2)
+    return T
 
-def construct_M_matrix_random(K, epsilon, random_state=None):
+def construct_T_matrix_block_RR(K, epsilon, nu):
+    assert K%2 == 0
+    K2 = int(K/2)
+    B2 = ((1.0+nu)*epsilon/K) * np.ones((K2,K2))
+    C2 = ((1.0-nu)*epsilon/K) * np.ones((K2,K2))
+    T = (1.0-epsilon) * np.identity(K) + np.block([[B2,C2],[C2,B2]])
+    return T
+
+def construct_T_matrix_random(K, epsilon, random_state=None):
     rng = np.random.default_rng(seed=random_state)
     U = rng.uniform(size=(K,K))
-    U /= np.sum(U,1).reshape((K,1))
-    M = (1-epsilon) * np.identity(K) + epsilon * U
+    U /= np.sum(U,0).reshape((1,K))
+    T = (1.0-epsilon) * np.identity(K) + epsilon * U
+    return T
+
+def convert_T_to_M(T,rho):
+    # T_kl = P(Y_tilde = k | Y=l)
+    # M_kl = P(Y=l | Y_tilde = k)
+    K = T.shape[0]
+    rho_t = np.dot(T, rho)
+    M = T
+    for k in range(K):
+        for l in range(K):
+            M[k,l] = T[k,l] * rho[l] / rho_t[k]
     return M
+
 
 
 class LinearContaminationModel:
-    def __init__(self, K, M, rho, rho_tilde, random_state=None):
-        self.K = K
-        self.M = M
+    def __init__(self, T, random_state=None):
+        self.T = T
         self.rng = np.random.default_rng(seed=random_state)
-        self.rho = rho
-        self.rho_tilde = rho_tilde
 
     def sample_labels(self, Y):
+        K = self.T.shape[0]
         n = len(Y)
         Y_tilde = -np.ones((n,)).astype(np.int32)
-        for l in range(self.K):
+        for l in range(K):
             idx_l = np.where(Y==l)[0]
             n_l = len(idx_l)
             if n_l > 0:
-                w = self.M[:,l] * self.rho_tilde / self.rho[l]
+                w = self.T[:,l]
                 w /= np.sum(w)
-                Y_tilde[idx_l] = self.rng.choice(self.K, size=(n_l,), replace=True, p=w)
+                Y_tilde[idx_l] = self.rng.choice(K, size=(n_l,), replace=True, p=w)
         return Y_tilde
 
     def set_seed(self, random_state):

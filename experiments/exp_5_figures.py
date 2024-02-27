@@ -22,7 +22,7 @@ from cln import data
 from cln import contamination
 from cln import estimation
 from cln.utils import evaluate_predictions, estimate_rho
-from cln.classification import LNSplitConformal
+from cln.classification import LabelNoiseConformal
 
 from data_torch import Cifar10DataSet, draw_images, ResNet18
 
@@ -220,8 +220,9 @@ def run_experiment(random_state):
         epsilon_hat = np.nan
     elif estimate=="rho":
         rho_tilde_hat = estimate_rho(K, Yt)
-        rho_hat = rho_tilde_hat
-        M_hat = contamination.construct_M_matrix_simple(K, epsilon)
+        T = contamination.construct_T_matrix_simple(K, epsilon)  
+        M_hat = contamination.convert_T_to_M(T,rho)
+        rho_hat = np.dot(M_hat.T, rho_tilde_hat)
         epsilon_ci = None
         epsilon_hat = np.nan
     elif estimate=="rho-epsilon-point":
@@ -232,13 +233,14 @@ def run_experiment(random_state):
         X_estim_clean, X_estim_corr, Y_estim_clean, _, _, Yt_estim_corr = train_test_split(X_estim, Y_estim, Yt_estim,
                                                                                            test_size=epsilon_n_corr/epsilon_n, random_state=random_state+4)
 
-        rho_tilde_hat = estimate_rho(K, Yt)
-        rho_hat = rho_tilde_hat
-        epsilon_hat, _, _, _, _ = estimation.fit_contamination_model(X_estim_clean, X_estim_corr,
-                                                                     Y_estim_clean, Yt_estim_corr, black_box,
-                                                                     rho_tilde_hat, 0.01, pre_trained=True,
-                                                                     random_state=random_state+6)
-        M_hat = contamination.construct_M_matrix_simple(K, epsilon_hat)
+        rho_tilde_hat = estimate_rho(Yt, K)
+        epsilon_hat, _, _, _, _ = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr,
+                                                                        Y_estim_clean, Yt_estim_corr, black_box,
+                                                                        K, 0.01, pre_trained=True,
+                                                                        random_state=random_state+6)
+        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+        rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
+        M_hat = contamination.convert_T_to_M(T_hat,rho_hat)
         epsilon_ci = None
 
     else:
@@ -272,11 +274,11 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (optimistic)
             print("Applying adaptive (optimistic) method using {:d} contaminated calibration samples...".format(len(Yt)), end=' ')
             sys.stdout.flush()
-            method_ln_opt = LNSplitConformal(X, Yt, black_box, K, alpha, n_cal=-1,
-                                             rho=rho_hat, rho_tilde=rho_tilde_hat,
-                                             M=M_hat, label_conditional=label_conditional,
-                                             calibration_conditional=False, gamma=gamma,
-                                             optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
+            method_ln_opt = LabelNoiseConformal(X, Yt, black_box, K, alpha, n_cal=-1,
+                                                rho_tilde=rho_tilde_hat,
+                                                M=M_hat, label_conditional=label_conditional,
+                                                calibration_conditional=False, gamma=gamma,
+                                                optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
             S_ln_opt = method_ln_opt.predict(X_test)
             print("Done.")
             sys.stdout.flush()

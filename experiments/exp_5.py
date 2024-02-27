@@ -22,7 +22,7 @@ from cln import data
 from cln import contamination
 from cln import estimation
 from cln.utils import evaluate_predictions, estimate_rho
-from cln.classification import LNSplitConformal
+from cln.classification import LabelNoiseConformal
 
 from data_torch import Cifar10DataSet, draw_images, ResNet18
 
@@ -61,7 +61,7 @@ epsilon_n = epsilon_n_clean + epsilon_n_corr
 n_test = 500
 num_exp = 5
 allow_empty = True
-epsilon_max = 0.05
+epsilon_max = 0.1
 gamma = 0.1
 
 # Pre-process parameters
@@ -122,12 +122,6 @@ outfile_prefix += "_est" + estimate + "_" + str(seed)
 print("Output file: {:s}.".format("results/"+outfile_prefix), end="\n")
 sys.stdout.flush()
 
-def estimate_rho(K, Y):
-    rho = np.ones((K,))
-    for k in range(K):
-        rho[k] = np.mean(Y==k)
-    return rho
-
 
 # Describe the experiment
 def run_experiment(random_state):
@@ -144,8 +138,8 @@ def run_experiment(random_state):
     sys.stdout.flush()
 
     # Estimate the label proportions from the whole data set
-    rho = estimate_rho(K, Y_batch)
-    rho_tilde = estimate_rho(K, Yt_batch)
+    rho = estimate_rho(Y_batch, K)
+    rho_tilde = estimate_rho(Yt_batch, K)
 
     # Separate the test set
     X, X_test, Y, Y_test, Yt, _ = train_test_split(X_batch, Y_batch, Yt_batch, test_size=n_test, random_state=random_state+2)
@@ -159,8 +153,9 @@ def run_experiment(random_state):
         epsilon_hat = np.nan
     elif estimate=="rho":
         rho_tilde_hat = estimate_rho(K, Yt)
-        rho_hat = rho_tilde_hat
-        M_hat = contamination.construct_M_matrix_simple(K, epsilon)
+        T = contamination.construct_T_matrix_simple(K, epsilon)  
+        M_hat = contamination.convert_T_to_M(T,rho)
+        rho_hat = np.dot(M_hat.T, rho_tilde_hat)
         epsilon_ci = None
         epsilon_hat = np.nan
     elif estimate=="rho-epsilon-point":
@@ -171,13 +166,14 @@ def run_experiment(random_state):
         X_estim_clean, X_estim_corr, Y_estim_clean, _, _, Yt_estim_corr = train_test_split(X_estim, Y_estim, Yt_estim,
                                                                                            test_size=epsilon_n_corr/epsilon_n, random_state=random_state+4)
 
-        rho_tilde_hat = estimate_rho(K, Yt)
-        rho_hat = rho_tilde_hat
-        epsilon_hat, _, _, _, _ = estimation.fit_contamination_model(X_estim_clean, X_estim_corr,
-                                                                     Y_estim_clean, Yt_estim_corr, black_box,
-                                                                     rho_tilde_hat, 0.01, pre_trained=True,
-                                                                     random_state=random_state+6)
-        M_hat = contamination.construct_M_matrix_simple(K, epsilon_hat)
+        rho_tilde_hat = estimate_rho(Yt, K)
+        epsilon_hat, _, _, _, _ = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr,
+                                                                        Y_estim_clean, Yt_estim_corr, black_box,
+                                                                        K, 0.01, pre_trained=True,
+                                                                        random_state=random_state+6)
+        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+        rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
+        M_hat = contamination.convert_T_to_M(T_hat,rho_hat)
         epsilon_ci = None
 
     else:
@@ -208,14 +204,26 @@ def run_experiment(random_state):
             print("Done.")
             sys.stdout.flush()
 
+            # Apply standard method (with theoretical correction) to corrupted labels
+            print("Applying standard method with theoretical correction using {:d} contaminated calibration samples...".format(len(Yt)), end=' ')
+            sys.stdout.flush()
+            alpha_theory = alpha * (1 - epsilon * (1-1/K))
+            method_sc_th = arc.methods.SplitConformal(X, Yt, black_box, K, alpha_theory, n_cal=-1,
+                                                   label_conditional=label_conditional,
+                                                   calibration_conditional=False, gamma=gamma,
+                                                   allow_empty=allow_empty, pre_trained=True, random_state=random_state)
+            S_sc_th = method_sc_th.predict(X_test)
+            print("Done.")
+            sys.stdout.flush()
+
             # Apply label-noise method to corrupted labels (pessimistic)
             print("Applying adaptive method using {:d} contaminated calibration samples...".format(len(Yt)), end=' ')
             sys.stdout.flush()
-            method_ln_pes = LNSplitConformal(X, Yt, black_box, K, alpha, n_cal=-1,
-                                             rho=rho_hat, rho_tilde=rho_tilde_hat,
-                                             M=M_hat, label_conditional=label_conditional,
-                                             calibration_conditional=False, gamma=gamma,
-                                             optimistic=False, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
+            method_ln_pes = LabelNoiseConformal(X, Yt, black_box, K, alpha, n_cal=-1,
+                                                rho_tilde=rho_tilde_hat,
+                                                M=M_hat, label_conditional=label_conditional,
+                                                calibration_conditional=False, gamma=gamma,
+                                                optimistic=False, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
             S_ln_pes = method_ln_pes.predict(X_test)
             print("Done.")
             sys.stdout.flush()
@@ -224,25 +232,27 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (optimistic)
             print("Applying adaptive (optimistic) method using {:d} contaminated calibration samples...".format(len(Yt)), end=' ')
             sys.stdout.flush()
-            method_ln_opt = LNSplitConformal(X, Yt, black_box, K, alpha, n_cal=-1,
-                                             rho=rho_hat, rho_tilde=rho_tilde_hat,
-                                             M=M_hat, label_conditional=label_conditional,
-                                             calibration_conditional=False, gamma=gamma,
-                                             optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
+            method_ln_opt = LabelNoiseConformal(X, Yt, black_box, K, alpha, n_cal=-1,
+                                                rho_tilde=rho_tilde_hat,
+                                                M=M_hat, label_conditional=label_conditional,
+                                                calibration_conditional=False, gamma=gamma,
+                                                optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
             S_ln_opt = method_ln_opt.predict(X_test)
             print("Done.")
             sys.stdout.flush()
 
             # Evaluate methods
             res_sc = evaluate_predictions(S_sc, X_test, Y_test, K, verbose=False)
+            res_sc_th = evaluate_predictions(S_sc_th, X_test, Y_test, K, verbose=False)
             res_ln_pes = evaluate_predictions(S_ln_pes, X_test, Y_test, K, verbose=False)
             res_ln_opt = evaluate_predictions(S_ln_opt, X_test, Y_test, K, verbose=False)
 
             # Combine results
             res_sc['Method'] = "Standard"
+            res_sc_th['Method'] = "Standard (theory)"
             res_ln_pes['Method'] = "Adaptive (pessimistic)"
             res_ln_opt['Method'] = "Adaptive (optimistic)"
-            res_new = pd.concat([res_sc, res_ln_pes, res_ln_opt])
+            res_new = pd.concat([res_sc, res_sc_th, res_ln_pes, res_ln_opt])
             res_new['Guarantee'] = guarantee
             res_new['Alpha'] = alpha
             res_new['random_state'] = random_state

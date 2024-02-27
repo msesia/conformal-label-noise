@@ -27,17 +27,16 @@ from third_party import arc
 # Define default parameters
 exp_num = 1
 data_name = 's1'
-num_var = 20
 K = 4
-signal = 1
 model_name = 'RFC'
 epsilon = 0.2
+nu = 0.1
 epsilon_max = 0.2
-epsilon_alpha = 0.1
-epsilon_train = "corrupted"
+nu_max = 0.2
+V_alpha = 0.1
 epsilon_n_clean = 10000
 epsilon_n_corr = 10000
-contamination_model = "uniform"
+contamination_model = "block-RR"
 n_train = 1000
 n_cal = 5000
 estimate = "None"
@@ -47,31 +46,33 @@ seed = 1
 if True:
     print ('Number of arguments:', len(sys.argv), 'arguments.')
     print ('Argument List:', str(sys.argv))
-    if len(sys.argv) != 18:
+    if len(sys.argv) != 17:
         print("Error: incorrect number of parameters.")
         quit()
     sys.stdout.flush()
 
     exp_num = int(sys.argv[1])
     data_name = sys.argv[2]
-    num_var = int(sys.argv[3])
-    K = int(sys.argv[4])
-    signal = float(sys.argv[5])
-    model_name = sys.argv[6]
-    epsilon = float(sys.argv[7])
-    contamination_model = sys.argv[8]
-    epsilon_max = float(sys.argv[9])
-    epsilon_alpha = float(sys.argv[10])
-    epsilon_train = sys.argv[11]
-    epsilon_n_clean = int(sys.argv[12])
-    epsilon_n_corr = int(sys.argv[13])
-    n_train = int(sys.argv[14])
-    n_cal = int(sys.argv[15])
-    estimate = sys.argv[16]
-    seed = int(sys.argv[17])
+    K = int(sys.argv[3])
+    model_name = sys.argv[4]
+    epsilon = float(sys.argv[5])
+    nu = float(sys.argv[6])
+    contamination_model = sys.argv[7]
+    epsilon_max = float(sys.argv[8])
+    nu_max = float(sys.argv[9])
+    V_alpha = float(sys.argv[10])
+    epsilon_n_clean = int(sys.argv[11])
+    epsilon_n_corr = int(sys.argv[12])
+    n_train = int(sys.argv[13])
+    n_cal = int(sys.argv[14])
+    estimate = sys.argv[15]
+    seed = int(sys.argv[16])
 
 
 # Define other constant parameters
+num_var = 50
+signal = 1
+epsilon_train = "corrupted"
 epsilon_n = epsilon_n_clean + epsilon_n_corr
 n_test = 1000
 batch_size = 5
@@ -106,6 +107,9 @@ elif contamination_model == "block":
 elif contamination_model == "random":
     T = contamination.construct_T_matrix_random(K, epsilon, random_state=seed)
     M = contamination.convert_T_to_M(T,rho)
+elif contamination_model == "block-RR":
+    T = contamination.construct_T_matrix_block_RR(K, epsilon, nu)
+    M = contamination.convert_T_to_M(T,rho)
 else:
     print("Unknown contamination (M) model!")
     sys.stdout.flush()
@@ -130,18 +134,18 @@ else:
 # Add important parameters to table of results
 header = pd.DataFrame({'data':[data_name], 'num_var':[num_var], 'K':[K],
                        'signal':[signal], 'n_train':[n_train], 'n_cal':[n_cal],
-                       'epsilon':[epsilon], 'contamination':[contamination_model],
-                       'epsilon_max':[epsilon_max], 'epsilon_alpha':[epsilon_alpha], 'epsilon_train':[epsilon_train], 
+                       'epsilon':[epsilon], 'nu':[nu], 'contamination':[contamination_model],
+                       'epsilon_max':[epsilon_max], 'nu_max':[nu_max], 'V_alpha':[V_alpha], 'epsilon_train':[epsilon_train], 
                        'epsilon_n_clean':[epsilon_n_clean], 'epsilon_n_corr':[epsilon_n_corr],
                        'calibration_conditional':[True], 'gamma':[gamma],
                        'model_name':[model_name], 'estimate':[estimate], 'seed':[seed]})
 
 # Output file
-outfile_prefix = "exp"+str(exp_num) + "/" + data_name + "_p" + str(num_var)
-outfile_prefix += "_K" + str(K) + "_s" + str(signal) + "_" + model_name
-outfile_prefix += "_e" + str(epsilon) + "_" + contamination_model
-outfile_prefix += "_emax" + str(epsilon_max) + "_ea" + str(epsilon_alpha)
-outfile_prefix += "_" + epsilon_train + "_encl" + str(epsilon_n_clean) + "_enco" + str(epsilon_n_corr)
+outfile_prefix = "exp"+str(exp_num) + "/" + data_name
+outfile_prefix += "_K" + str(K) + "_" + model_name
+outfile_prefix += "_e" + str(epsilon) + "_nu" + str(nu) + "_" + contamination_model
+outfile_prefix += "_emax" + str(epsilon_max) + "_numax" + str(nu_max) + "_ea" + str(V_alpha)
+outfile_prefix += "_encl" + str(epsilon_n_clean) + "_enco" + str(epsilon_n_corr)
 outfile_prefix += "_nt" + str(n_train) + "_nc" + str(n_cal) + "_est" + estimate + "_" + str(seed)
 print("Output file: {:s}.".format("results/"+outfile_prefix), end="\n")
 sys.stdout.flush()
@@ -184,68 +188,84 @@ def run_experiment(random_state):
         M_hat = M
         epsilon_ci = None
         epsilon_hat = np.nan
-    elif estimate=="rho":
-        rho_tilde_hat = estimate_rho(Yt, K)
-        rho_hat = np.dot(M.T, rho_tilde_hat)
-        M_hat = M        
-        epsilon_ci = None
-        epsilon_hat = np.nan
-    elif estimate=="rho-epsilon-point":
-        rho_tilde_hat = estimate_rho(Yt, K)
-        epsilon_hat, _, _, _, _ = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr, 
-                                                                        Y_estim_clean, Yt_estim_corr, black_box, 
-                                                                        K, epsilon_alpha, epsilon_max=epsilon_max, 
-                                                                        train_on_clean=epsilon_train_on_clean, 
-                                                                        random_state=random_state+6)
-        epsilon_hat = np.minimum(epsilon_hat, epsilon_max)
-        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
-        rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
-        M_hat = contamination.convert_T_to_M(T_hat,rho_hat)
-        epsilon_ci = None
+        nu_ci = None
+        nu_hat = np.nan
+        V_ci = None
+        V_max = None
+        Zeta_upp=None
 
-    elif estimate=="rho-epsilon-ci":
+    # elif estimate=="rho":
+    #     rho_tilde_hat = estimate_rho(Yt, K)
+    #     rho_hat = np.dot(M.T, rho_tilde_hat)
+    #     M_hat = M        
+    #     epsilon_ci = None
+    #     epsilon_hat = np.nan
+    elif estimate=="r-e-p":
         rho_tilde_hat = estimate_rho(Yt, K)
-        epsilon_hat, epsilon_low, epsilon_upp, _, _ = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr, 
-                                                                                            Y_estim_clean, Yt_estim_corr, black_box, 
-                                                                                            K, epsilon_alpha, epsilon_max=epsilon_max, 
-                                                                                            train_on_clean=epsilon_train_on_clean,
-                                                                                            random_state=random_state+6)
-        M_hat = None
-        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+        epsilon_hat, _, _, nu_hat, _, _ = estimation.fit_contamination_model_BRR(X_estim_clean, X_estim_corr, 
+                                                                                 Y_estim_clean, Yt_estim_corr, black_box, 
+                                                                                 K, V_alpha, epsilon_max=epsilon_max, nu_max=nu_max, 
+                                                                                 train_on_clean=epsilon_train_on_clean, 
+                                                                                 random_state=random_state+6)
+        T_hat = contamination.construct_T_matrix_block_RR(K, epsilon_hat, nu_hat)
         rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
-        M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat)
-        epsilon_upp = np.minimum(epsilon_upp, epsilon_max)
-        epsilon_ci = [epsilon_low, epsilon_upp]
+        M_hat = contamination.convert_T_to_M(T_hat,rho_hat) 
+        epsilon_ci = None
+        nu_ci = None
+        V_ci = None
+        V_max = None
+        Zeta_upp=None
 
-    elif estimate=="rho-epsilon-ci-b":
+    # elif estimate=="r-e-ci":
+    #     rho_tilde_hat = estimate_rho(Yt, K)
+    #     epsilon_hat, epsilon_low, epsilon_upp, _, _ = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr, 
+    #                                                                                         Y_estim_clean, Yt_estim_corr, black_box, 
+    #                                                                                         K, V_alpha, epsilon_max=epsilon_max, 
+    #                                                                                         train_on_clean=epsilon_train_on_clean,
+    #                                                                                         random_state=random_state+6)
+    #     M_hat = None
+    #     T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+    #     rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
+    #     M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat)
+    #     epsilon_upp = np.minimum(epsilon_upp, epsilon_max)
+    #     epsilon_ci = [epsilon_low, epsilon_upp]
+
+    elif estimate=="r-e-ci-b":
         rho_tilde_hat = estimate_rho(Yt, K)
-        epsilon_hat, _, _, epsilon_low, epsilon_upp = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr, 
-                                                                                            Y_estim_clean, Yt_estim_corr, black_box, 
-                                                                                            K, epsilon_alpha, epsilon_max=epsilon_max,
-                                                                                            train_on_clean=epsilon_train_on_clean, 
-                                                                                            parametric=False, random_state=random_state+6)
+        epsilon_hat, epsilon_low, epsilon_upp, nu_hat, nu_low, nu_upp = estimation.fit_contamination_model_BRR(X_estim_clean, X_estim_corr, 
+                                                                                                               Y_estim_clean, Yt_estim_corr, black_box, 
+                                                                                                               K, V_alpha, epsilon_max=epsilon_max, nu_max=nu_max, 
+                                                                                                               train_on_clean=epsilon_train_on_clean,
+                                                                                                               parametric=False,
+                                                                                                               random_state=random_state+6)
         M_hat = None
-        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+        T_hat = contamination.construct_T_matrix_block_RR(K, epsilon_hat, nu_hat)
         rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
-        M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat)
+        M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat) 
         rho_hat = np.dot(M_hat_tmp.T, rho_tilde_hat)        
-        epsilon_upp = np.minimum(epsilon_upp, epsilon_max)
         epsilon_ci = [epsilon_low, epsilon_upp]
+        nu_ci = [nu_low, nu_upp]
+        V_low, V_upp, V_max, Zeta_upp = estimation.construct_V_CI_BRR(epsilon_ci, epsilon_max, nu_ci, nu_max, rho_tilde)
+        V_ci = (V_low, V_upp)
 
-    elif estimate=="rho-epsilon-ci-pb":
+    elif estimate=="r-e-ci-pb":
         rho_tilde_hat = estimate_rho(Yt, K)
-        epsilon_hat, _, _, epsilon_low, epsilon_upp = estimation.fit_contamination_model_RR(X_estim_clean, X_estim_corr, 
-                                                                                            Y_estim_clean, Yt_estim_corr, black_box, 
-                                                                                            K, epsilon_alpha, epsilon_max=epsilon_max,
-                                                                                            train_on_clean=epsilon_train_on_clean, 
-                                                                                            parametric=True, random_state=random_state+6)
+        epsilon_hat, epsilon_low, epsilon_upp, nu_hat, nu_low, nu_upp = estimation.fit_contamination_model_BRR(X_estim_clean, X_estim_corr, 
+                                                                                                               Y_estim_clean, Yt_estim_corr, black_box, 
+                                                                                                               K, V_alpha, epsilon_max=epsilon_max, nu_max=nu_max, 
+                                                                                                               train_on_clean=epsilon_train_on_clean,
+                                                                                                               parametric=True,
+                                                                                                               random_state=random_state+6)
         M_hat = None
-        T_hat = contamination.construct_T_matrix_simple(K, epsilon_hat)
+        T_hat = contamination.construct_T_matrix_block_RR(K, epsilon_hat, nu_hat)
         rho_hat = np.dot(np.linalg.inv(T_hat), rho_tilde_hat)
-        M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat)
-        epsilon_upp = np.minimum(epsilon_upp, epsilon_max)
+        M_hat_tmp = contamination.convert_T_to_M(T_hat,rho_hat) 
+        rho_hat = np.dot(M_hat_tmp.T, rho_tilde_hat)        
         epsilon_ci = [epsilon_low, epsilon_upp]
-               
+        nu_ci = [nu_low, nu_upp]
+        V_low, V_upp, V_max, Zeta_upp = estimation.construct_V_CI_BRR(epsilon_ci, epsilon_max, nu_ci, nu_max, rho_tilde)
+        V_ci = (V_low, V_upp)
+
     else:
         print("Unknown estimation option!")
         sys.stdout.flush()
@@ -288,8 +308,8 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (pessimistic)
             print("Applying adaptive method...", end=' ')
             sys.stdout.flush()
-            method_ln_pes = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, rho_tilde=rho_tilde_hat, 
-                                                M=M_hat, epsilon_ci=epsilon_ci, epsilon_alpha=epsilon_alpha, epsilon_max=epsilon_max, 
+            method_ln_pes = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho_tilde=rho_tilde_hat,
+                                                V_ci=V_ci, V_alpha=V_alpha, Zeta_upp=Zeta_upp, V_max=V_max,
                                                 label_conditional=label_conditional,
                                                 calibration_conditional=False, gamma=gamma,
                                                 optimistic=False, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
@@ -301,8 +321,8 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (optimistic)
             print("Applying adaptive (optimistic) method...", end=' ')
             sys.stdout.flush()
-            method_ln_opt = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, rho_tilde=rho_tilde_hat, 
-                                                M=M_hat, epsilon_ci=epsilon_ci, epsilon_alpha=epsilon_alpha, epsilon_max=epsilon_max, 
+            method_ln_opt = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho_tilde=rho_tilde_hat,
+                                                V_ci=V_ci, V_alpha=V_alpha, Zeta_upp=Zeta_upp, V_max=V_max, 
                                                 label_conditional=label_conditional,
                                                 calibration_conditional=False, gamma=gamma,
                                                 optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
@@ -324,12 +344,19 @@ def run_experiment(random_state):
             res_new['Alpha'] = alpha
             res_new['random_state'] = random_state            
             res_new['epsilon_hat'] = epsilon_hat
+            res_new['nu_hat'] = nu_hat
             if epsilon_ci is None:
                 res_new['epsilon_low'] = np.nan
                 res_new['epsilon_upp'] = np.nan
             else:
                 res_new['epsilon_low'] = epsilon_ci[0]
                 res_new['epsilon_upp'] = epsilon_ci[1]
+            if nu_ci is None:
+                res_new['nu_low'] = np.nan
+                res_new['nu_upp'] = np.nan
+            else:
+                res_new['nu_low'] = nu_ci[0]
+                res_new['nu_upp'] = nu_ci[1]
             res = pd.concat([res, res_new])
 
     print(res)

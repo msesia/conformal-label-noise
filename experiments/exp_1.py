@@ -18,7 +18,7 @@ from cln import data
 from cln import contamination
 from cln.utils import evaluate_predictions, estimate_rho
 
-from cln.classification import LNSplitConformal
+from cln.classification import LabelNoiseConformal
 
 from third_party import arc
 
@@ -31,7 +31,7 @@ K = 4
 signal = 1
 model_name = 'RFC'
 epsilon = 0.2
-contamination_model = "uniform-const"
+contamination_model = "uniform"
 n_train = 1000
 n_cal = 5000
 estimate = "None"
@@ -65,9 +65,6 @@ n_test = 2000
 batch_size = 5
 allow_empty = True
 
-# Parse input
-contamination_M, contamination_rho = contamination_model.split("-")
-
 # Initialize the data distribution
 if data_name == "synthetic1":
     data_distribution = data.DataModel_1(K, num_var, signal=signal, random_state=seed)
@@ -83,30 +80,23 @@ else:
 # Estimate the label proportions from the population model
 rho = data_distribution.estimate_rho()
 
-# Define the target label proportions for the contamination model
-if contamination_rho == "const":
-    rho_tilde = rho
-elif contamination_rho == "enrich":
-    rho_tilde = np.power(rho,2)
-    rho_tilde /= np.sum(rho_tilde)
-else:
-    print("Unknown contamination (rho) model!")
-    sys.stdout.flush()
-    exit(-1)
-
-
 # Initialize noise contamination process
-if contamination_M == "uniform":
-    M = contamination.construct_M_matrix_simple(K, epsilon)
-elif contamination_M == "block":
-    M = contamination.construct_M_matrix_block(K, epsilon)
-elif contamination_M == "random":
-    M = contamination.construct_M_matrix_random(K, epsilon, random_state=seed)
+if contamination_model == "uniform":
+    T = contamination.construct_T_matrix_simple(K, epsilon)  
+    M = contamination.convert_T_to_M(T,rho)
+elif contamination_model == "block":
+    T = contamination.construct_T_matrix_block(K, epsilon)
+    M = contamination.convert_T_to_M(T,rho)
+elif contamination_model == "random":
+    T = contamination.construct_T_matrix_random(K, epsilon, random_state=seed)
+    M = contamination.convert_T_to_M(T,rho)
 else:
     print("Unknown contamination (M) model!")
     sys.stdout.flush()
     exit(-1)
 
+# Compute the contaminated label proportions
+rho_tilde = np.dot(T, rho)
 
 # Initialize black-box model
 if model_name == 'RFC':
@@ -154,7 +144,7 @@ def run_experiment(random_state):
     # Generate the contaminated labels
     print("Generating contaminated labels...", end=' ')
     sys.stdout.flush()
-    contamination_process = contamination.LinearContaminationModel(K, M, rho, rho_tilde, random_state=random_state+3)
+    contamination_process = contamination.LinearContaminationModel(T, random_state=random_state+3)
     Yt = contamination_process.sample_labels(Y)
     print("Done.")
     sys.stdout.flush()
@@ -166,7 +156,7 @@ def run_experiment(random_state):
         M_hat = M
     elif estimate=="rho":
         rho_tilde_hat = estimate_rho(Yt, K)
-        rho_hat = rho_tilde_hat
+        rho_hat = np.dot(M.T, rho_tilde_hat)
         M_hat = M        
     else:
         print("Unknown estimation option!")
@@ -208,8 +198,8 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (pessimistic)
             print("Applying adaptive method...", end=' ')
             sys.stdout.flush()
-            method_ln_pes = LNSplitConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho=rho_hat, rho_tilde=rho_tilde_hat, label_conditional=label_conditional,
-                                             optimistic=False, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
+            method_ln_pes = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho_tilde=rho_tilde_hat, label_conditional=label_conditional,
+                                                optimistic=False, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
             S_ln_pes = method_ln_pes.predict(X_test)
             print("Done.")
             sys.stdout.flush()
@@ -217,8 +207,8 @@ def run_experiment(random_state):
             # Apply label-noise method to corrupted labels (optimistic)
             print("Applying adaptive (optimistic) method...", end=' ')
             sys.stdout.flush()
-            method_ln_opt = LNSplitConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho=rho_hat, rho_tilde=rho_tilde_hat, label_conditional=label_conditional,
-                                             optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
+            method_ln_opt = LabelNoiseConformal(X, Yt, black_box_pt, K, alpha, n_cal=n_cal, M=M_hat, rho_tilde=rho_tilde_hat, label_conditional=label_conditional,
+                                                optimistic=True, allow_empty=allow_empty, verbose=False, pre_trained=True, random_state=random_state)
             S_ln_opt = method_ln_opt.predict(X_test)
             print("Done.")
             sys.stdout.flush()

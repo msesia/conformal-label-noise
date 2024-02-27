@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Parameters
-CONF=34
+CONF=31
 
 if [[ $CONF == 31 ]]; then
   # Figure class 31
@@ -11,7 +11,7 @@ if [[ $CONF == 31 ]]; then
   SIGNAL_LIST=(1.0)
   MODEL_LIST=('RFC')
   EPSILON_LIST=(0.1)
-  CONTAMINATION_LIST=("uniform-const")
+  CONTAMINATION_LIST=("uniform")
   EPSILON_MAX_LIST=(0.1)
   EPSILON_SE_LIST=(0 0.01 0.02 0.03 0.04 0.05)
   EPSILON_ALPHA_LIST=(0.01)
@@ -28,7 +28,7 @@ elif [[ $CONF == 32 ]]; then
   SIGNAL_LIST=(1.0)
   MODEL_LIST=('RFC')
   EPSILON_LIST=(0.2)
-  CONTAMINATION_LIST=("uniform-const")
+  CONTAMINATION_LIST=("uniform")
   EPSILON_MAX_LIST=(0.2)
   EPSILON_SE_LIST=(0 0.01 0.02 0.03 0.04 0.05)
   EPSILON_ALPHA_LIST=(0.01)
@@ -45,7 +45,7 @@ elif [[ $CONF == 33 ]]; then
   SIGNAL_LIST=(1.0)
   MODEL_LIST=('RFC')
   EPSILON_LIST=(0.2)
-  CONTAMINATION_LIST=("uniform-const")
+  CONTAMINATION_LIST=("uniform")
   EPSILON_MAX_LIST=(0.2)
   EPSILON_SE_LIST=(0 0.01 0.02 0.03 0.04 0.05)
   EPSILON_ALPHA_LIST=(0.01)
@@ -62,7 +62,7 @@ elif [[ $CONF == 34 ]]; then
   SIGNAL_LIST=(1.0)
   MODEL_LIST=('RFC')
   EPSILON_LIST=(0.1)
-  CONTAMINATION_LIST=("uniform-const")
+  CONTAMINATION_LIST=("uniform")
   EPSILON_MAX_LIST=(0.1 0.11 0.12 0.13 0.14 0.15 0.16 0.17 0.18 0.19 0.2)
   EPSILON_SE_LIST=(0)
   EPSILON_ALPHA_LIST=(0)
@@ -80,8 +80,8 @@ TIME=00-00:20:00                    # Time required (20 m)
 CORE=1                              # Cores required (1)
 
 # Assemble order prefix
-ORDP="sbatch --mem="$MEMO" --nodes=1 --ntasks=1 --cpus-per-task=1 --time="$TIME
-#ORDP="sbatch --mem="$MEMO" --nodes=1 --ntasks=1 --cpus-per-task=1 --time="$TIME" --account=sesia_1124 --partition=main"
+#ORDP="sbatch --mem="$MEMO" --nodes=1 --ntasks=1 --cpus-per-task=1 --time="$TIME
+ORDP="sbatch --mem="$MEMO" --nodes=1 --ntasks=1 --cpus-per-task=1 --time="$TIME" --account=sesia_1124 --partition=main"
 
 # Create directory for log files
 LOGS="logs"
