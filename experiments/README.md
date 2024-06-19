@@ -41,9 +41,22 @@ To run the scripts sequentially on a laptop:
 ### Result Collection and Plotting
 
 1. **Collect Results**: If running on a cluster, use `download.sh` to collect and download result files.
-2. **Generate Plots**: Use `make_plots.R` and `make_plots_data.R` to produce the figures for the paper.
+2. **Generate Plots**: Use `make_plots.R` (for synthetic data experiments) and `make_plots_data.R` (for real data experiments) to produce the figures for the paper.
 
-## Obtaining the CIFAR-10H data
+
+## Correspondence between Scripts and Paper Figures
+
+- **submit_experiments_1.sh:** Conduct experiments with synthetic data, targeting label-conditional or marginal coverage based on a known contamination model.
+- **submit_experiments_2_cc.sh:** Conduct experiments with synthetic data, aiming for calibration-conditional coverage based on a known contamination model.
+- **submit_experiments_3_cc.sh:** Conduct experiments with synthetic data, focusing on label-conditional coverage using a bounded contamination model.
+- **submit_experiments_4_estimate.sh:** Conduct experiments with synthetic data, aiming for label-conditional coverage based on an estimated contamination model.
+- **submit_experiments_5_cifar10.sh:** Conduct experiments involving real CIFAR-10H data.
+- **submit_experiments_6_bounded.sh:** Conduct supplementary experiments with synthetic data, using a contamination process described by a two-level randomized response model with bounded parameters.
+- **submit_experiments_7_estimate.sh:** Conduct supplementary experiments with synthetic data, using a contamination process described by a two-level randomized response model with estimated parameters.
+
+
+
+## Obtaining the CIFAR-10H Data
 
 To obtain the CIFAR-10 and CIFAR-10H data needed for the real-data experiments described in the paper, follow these steps:
 
@@ -53,7 +66,7 @@ To obtain the CIFAR-10 and CIFAR-10H data needed for the real-data experiments d
    git clone https://github.com/jcpeterson/cifar-10h cifar-10h
    ```
 2. **Download the CIFAR-10 Dataset:**
-   Download and unpack the original CIFAR-10 dataset from the following URL (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz) and place it into a subfolder named `cifar-10-python`.
+   Download and unpack the original CIFAR-10 dataset from the following URL: CIFAR-10 Dataset and place it into a subfolder named `cifar-10h`.
 
 After completing these two steps, you will have the following additional contents within this directory:
 
