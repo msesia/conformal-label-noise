@@ -38,7 +38,33 @@ To run the scripts sequentially on a laptop:
 
 2. **Run Scripts**: Execute the modified submission scripts locally.
 
-### Data Collection and Plotting
+### Result Collection and Plotting
 
 1. **Collect Results**: If running on a cluster, use `download.sh` to collect and download result files.
 2. **Generate Plots**: Use `make_plots.R` and `make_plots_data.R` to produce the figures for the paper.
+
+## Obtaining the CIFAR-10H data
+
+To obtain the CIFAR-10 and CIFAR-10H data needed for the real-data experiments described in the paper, follow these steps:
+
+1. **Clone the CIFAR-10H Repository:**
+   Clone the CIFAR-10H repository into a subfolder named `cifar-10h`:
+   ```bash
+   git clone https://github.com/jcpeterson/cifar-10h cifar-10h
+   ```
+2. **Download the CIFAR-10 Dataset:**
+   Download and unpack the original CIFAR-10 dataset from the following URL (https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz) and place it into a subfolder named `cifar-10-python`.
+
+After completing these two steps, you will have the following additional contents within this directory:
+
+```cifar-10h/
+├── cifar-10-python/
+│   └── cifar-10-batches-py/
+├── data/
+│   └── cifar10h-counts.npy
+│   └── cifar10h-probs.npy
+│   └── resnet18.pt
+│   └── test_batch
+├── LICENSE.txt
+└── README.md
+```
