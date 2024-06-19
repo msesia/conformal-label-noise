@@ -39,7 +39,7 @@ Clone the development version from GitHub:
 
 ## Reproducibility Instructions
 
-See the [experiments/README.md](experiments/README.md) file for details on obtaining the real data used in the manuscript and reproducing the paper's figures.
+See the [experiments/README.md](experiments/README.md) file for instructions on how to obtain the real CIFAR-10 data used in the manuscript and for reproducing the paper's figures.
 
 ## License
 
