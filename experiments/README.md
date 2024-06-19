@@ -54,7 +54,7 @@ To run the scripts sequentially on a laptop:
 - **submit_experiments_6_bounded.sh:** Conduct supplementary experiments with synthetic data, using a contamination process described by a two-level randomized response model with bounded parameters.
 - **submit_experiments_7_estimate.sh:** Conduct supplementary experiments with synthetic data, using a contamination process described by a two-level randomized response model with estimated parameters.
 
-
+Please refer to the corresponding three-digit figure codes in the Bash submission scripts and R plotting scripts to accurately match experimental settings with their respective results.
 
 ## Obtaining the CIFAR-10H Data
 
