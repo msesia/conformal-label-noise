@@ -28,8 +28,7 @@ Each experiment consists of the following files:
 
 The scripts are designed for efficient parallel execution on a computing cluster. 
 
-1. **Run Experiment Scripts**: Use the helper bash scripts (e.g., `exp_1.sh`) to call the Python experiment scripts (e.g., `exp_1.py`).
-2. **Submit Jobs**: Use the submission scripts (e.g., `submit_experiments_1.sh`) to specify and submit all required parameter combinations.
+1. **Submit Jobs**: Use the submission scripts (e.g., `submit_experiments_1.sh`) to specify and submit all required parameter combinations.
 
 ### Local Execution
 
