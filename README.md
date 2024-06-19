@@ -39,7 +39,7 @@ Clone the development version from GitHub:
 
 ## Reproducibility Instructions
 
-Refer to `experiments/instructions.md` for details on obtaining the real data used in the manuscript and reproducing the paper's figures.
+See the [experiments/INSTRUCTIONS.md](experiments/INSTRUCTIONS.md) file for details on obtaining the real data used in the manuscript and reproducing the paper's figures.
 
 ## License
 
